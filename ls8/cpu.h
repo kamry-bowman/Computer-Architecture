@@ -6,7 +6,7 @@ struct cpu {
   // TODO
   unsigned char *PC;
   unsigned char **registers;
-  unsigned char **RAM;
+  unsigned char **ram;
 };
 
 // ALU operations
