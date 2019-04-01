@@ -2,6 +2,7 @@
 
 #define DATA_LEN 6
 
+
 /**
  * Load the binary bytes from a .ls8 source file into a RAM array
  */
@@ -37,14 +38,25 @@ void cpu_ram_write(struct cpu *cpu, int address, int value) {
 /**
  * ALU
  */
-void alu(struct cpu *cpu, enum alu_op op, unsigned char regA, unsigned char regB)
+void alu(struct cpu *cpu, unsigned char op, unsigned char regA, unsigned char regB)
 {
   switch (op) {
-    case ALU_MUL:
-      // TODO
-      break;
+    case ADD:
+      cpu->registers
+      cpu->registers[operandA], cpu->registers[operandB]
 
-    // TODO: implement more ALU ops
+    case AND:
+    case DEC:
+    case DIV:
+    case INC:
+    case MOD:
+    case MUL:
+    case NOT:
+    case OR:
+    case SHL:
+    case SHR:
+    case SUB:
+    case XOR:
   }
 }
 
@@ -58,9 +70,49 @@ void cpu_run(struct cpu *cpu)
   while (running) {
     // TODO
     // 1. Get the value of the current instruction (in address PC).
+    int IR = cpu_ram_read(cpu, cpu->PC);
     // 2. Figure out how many operands this next instruction requires
     // 3. Get the appropriate value(s) of the operands following this instruction
+    int mask = 0b11000000;
+    int operandA;
+    int operandB;
+    switch(IR & mask) {
+      case 0b01000000:
+        operandA = cpu_ram_read(cpu, cpu->PC + 1);
+
+      case 0b10000000:
+        operandB = cpu_ram_read(cpu, cpu->PC + 2);
+    }
+
     // 4. switch() over it to decide on a course of action.
+    switch(IR) {
+      // ALU Operations
+      case ADD:
+      case AND:
+      case DEC:
+      case DIV:
+      case INC:
+      case MOD:
+      case MUL:
+      case NOT: 
+      case OR:
+      case SHL:  
+      case SHR:
+      case SUB:
+      case XOR:
+        alu(cpu, IR, cpu->registers[operandA], cpu->registers[operandB]);
+
+      case CMP:
+        // how to update flags?
+        
+
+        
+      case INT:
+        
+        
+    }
+
+
     // 5. Do whatever the instruction should do according to the spec.
     // 6. Move the PC to the next instruction.
   }
