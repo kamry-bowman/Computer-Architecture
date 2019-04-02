@@ -171,7 +171,6 @@ void cpu_run(struct cpu *cpu)
     }
 
     int IR = cpu_ram_read(cpu, cpu->PC);
-    printf("IR: %c\n", IR);
   
     int mask = 0b11000000;
     int operandA;
@@ -194,7 +193,7 @@ void cpu_run(struct cpu *cpu)
       int interrupt_happened = 0;
       int interrupt_pos;
       for (int i = 0; i < 8; i++) {
-        if (((interrupts >> i) & i) == 1) {
+        if (((interrupts >> i) & 1) == 1) {
           interrupt_happened = 1;
           interrupt_pos = i;
           break;
@@ -219,7 +218,7 @@ void cpu_run(struct cpu *cpu)
 
         // set PC to interrupt address
         cpu->PC = cpu_ram_read(cpu, INTERRUPT_RAM + interrupt_pos);
-        break;
+        continue;
       }
     }
 
