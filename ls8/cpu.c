@@ -214,6 +214,17 @@ void cpu_run(struct cpu *cpu)
     // handle PC updating
     switch (IR)
     {
+    case CALL:
+      *SP = *SP + 1;
+      cpu_ram_write(cpu, *SP, cpu->PC + 2);
+      cpu->PC = cpu->registers[operandA];
+      break;
+    
+    case RET:
+      cpu->PC = cpu_ram_read(cpu, *SP);
+      *SP = *SP - 1;
+      break;
+
     case JEQ:
       if (cpu->FL == 1)
       {
