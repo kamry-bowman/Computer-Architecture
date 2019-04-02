@@ -32,9 +32,14 @@ void cpu_load(struct cpu *cpu, char *path)
   char * line = NULL;
   size_t len = 0;
   int read = 0;
+  char * endpoint = 0;
   while ((read = getline(&line, &len, file)) != -1) {
-    cpu->ram[address] = strtol (line, NULL, 2);;
-    address++;
+    strtoul(line, &endpoint, 2);
+    if (endpoint != 0) {
+      cpu->ram[address] = line;
+      address++;
+    }
+    *endpoint = 0;
   }
 }
 
