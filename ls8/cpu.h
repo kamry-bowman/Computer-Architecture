@@ -24,7 +24,7 @@
 #define CALL 0b01010000
 #define RET 0b00010001
 #define LD 0b10000011
-#define ST 0b1000100
+#define ST 0b10000100
 #define LDI 0b10000010
 #define INT 0b01010010
 #define IRET 0b00010011

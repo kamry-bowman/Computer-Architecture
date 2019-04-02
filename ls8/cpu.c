@@ -1,6 +1,7 @@
 #include "cpu.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 #define DATA_LEN 6
 
@@ -139,13 +140,35 @@ void alu(struct cpu *cpu, unsigned char op, unsigned char regA, unsigned char re
 void cpu_run(struct cpu *cpu)
 {
   int running = 1; // True until we get a HLT instruction
+  int interrupted = 0; // set global interrupt state to false
+  // set up interrupt timer
+  struct timeval *tv;
+  gettimeofday(tv, NULL);
+  unsigned long int next_time = tv->tv_sec * 1000 + tv->tv_usec + 1000;
+
 
   // set up stack pointer
   cpu->registers[7] = 0xF4;
   unsigned char *SP = cpu->registers + 7;
 
+  // set up IS and IM register
+  unsigned char INTERRUPT_RAM = 0xF8;
+  cpu->registers[5] = 0;
+  unsigned char *IM = cpu->registers + 5;
+  cpu->registers[6] = 0;
+  unsigned char *IS = cpu->registers + 6;
+
   while (running)
   {
+    // check interrupts
+    struct timeval *tv;
+    gettimeofday(tv, NULL);
+    unsigned long int new_time = tv->tv_sec * 1000 + tv->tv_usec;
+    if (new_time >= next_time) {
+      next_time = new_time + 1000;
+      *IS = *IS | 1;
+    }
+
     int IR = cpu_ram_read(cpu, cpu->PC);
   
     int mask = 0b11000000;
@@ -161,6 +184,41 @@ void cpu_run(struct cpu *cpu)
       operandA = cpu_ram_read(cpu, cpu->PC + 1);
       operandB = cpu_ram_read(cpu, cpu->PC + 2);
       break;
+    }
+
+    // first check for interrupt
+    if (!interrupted) {
+      unsigned char interrupts = (*IS & *IM);
+      int interrupt_happened = 0;
+      int interrupt_pos;
+      for (int i = 0; i < 8; i++) {
+        if (((interrupts >> i) & i) == 1) {
+          interrupt_happened = 1;
+          interrupt_pos = i;
+          break;
+        }
+      }
+      if (interrupt_happened) {
+        *IS = *IS & 0b11111110;
+        interrupted = 1;
+        *SP = *SP + 1;
+        // push PC onto stack
+        cpu_ram_write(cpu, *SP, cpu->PC);
+
+        // push FL onto stack
+        *SP = *SP + 1;
+        cpu_ram_write(cpu, *SP, cpu->FL);
+
+        // push registers R0 - R6 onto stack
+        for (int i = 0; i < 7; i++) {
+          *SP = *SP + 1;
+          cpu_ram_write(cpu, *SP, cpu->registers[i]);
+        }
+
+        // set PC to interrupt address
+        cpu->PC = cpu_ram_read(cpu, INTERRUPT_RAM + interrupt_pos);
+        break;
+      }
     }
 
     // handle alu operations
@@ -185,8 +243,15 @@ void cpu_run(struct cpu *cpu)
         cpu->registers[operandA] = operandB;
         break;
       case LD:
-        cpu->registers[operandA] = cpu->registers[operandB];
+        cpu->registers[operandA] = cpu_ram_read(cpu, cpu->registers[operandB]);
         break;
+      
+      case ST:
+        cpu_ram_write(cpu, cpu->registers[operandA], cpu->registers[operandB]);
+        break;
+
+      case INT:
+
 
       // print
       case PRA:
@@ -224,6 +289,27 @@ void cpu_run(struct cpu *cpu)
       cpu->PC = cpu_ram_read(cpu, *SP);
       *SP = *SP - 1;
       break;
+
+    case IRET:
+      // pop R6-RO off stack into registers
+      for (int i = 0; i < 7; i++) {
+        cpu->registers[6 - i] = cpu_ram_read(cpu, *SP);
+        *SP = *SP - 1;
+      }
+
+      // pop FL off stack onto FL register
+      cpu->FL = cpu_ram_read(cpu, *SP);
+      *SP = *SP - 1;
+
+      // pop PC off stack onto PC register
+      cpu->PC = cpu_ram_read(cpu, *SP);
+      *SP = *SP - 1;
+
+      // set global interrupted flag to false
+      interrupted = 0;
+      break;
+
+
 
     case JEQ:
       if (cpu->FL == 1)
