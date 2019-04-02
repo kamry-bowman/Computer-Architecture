@@ -21,7 +21,7 @@ void cpu_load(struct cpu *cpu, char *path)
   //     0b00000001 // HLT
   // };
 
-  FILE *file = fopen(path, "r");
+  FILE *file = fopen("examples/interrupts.ls8", "r");
 
   if (file == NULL) {
     perror("File not found.");
@@ -29,17 +29,14 @@ void cpu_load(struct cpu *cpu, char *path)
   }
 
   int address = 0;
-  char * line = NULL;
-  size_t len = 0;
-  int read = 0;
-  char * endpoint = 0;
-  while ((read = getline(&line, &len, file)) != -1) {
-    strtoul(line, &endpoint, 2);
-    if (endpoint != 0) {
-      cpu->ram[address] = line;
+  char line[256];
+  while (fgets(line, 256, file)) {
+    char * endpoint;
+    unsigned char val = strtoul(line, &endpoint, 2);
+    if (line != endpoint) {
+      cpu->ram[address] = val;
       address++;
     }
-    *endpoint = 0;
   }
 }
 
@@ -147,9 +144,9 @@ void cpu_run(struct cpu *cpu)
   int running = 1; // True until we get a HLT instruction
   int interrupted = 0; // set global interrupt state to false
   // set up interrupt timer
-  struct timeval *tv;
-  gettimeofday(tv, NULL);
-  unsigned long int next_time = tv->tv_sec * 1000 + tv->tv_usec + 1000;
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  unsigned long int next_time = tv.tv_sec * 1000 + tv.tv_usec + 1000;
 
 
   // set up stack pointer
@@ -166,15 +163,15 @@ void cpu_run(struct cpu *cpu)
   while (running)
   {
     // check interrupts
-    struct timeval *tv;
-    gettimeofday(tv, NULL);
-    unsigned long int new_time = tv->tv_sec * 1000 + tv->tv_usec;
+    gettimeofday(&tv, NULL);
+    unsigned long int new_time = tv.tv_sec * 1000 + tv.tv_usec;
     if (new_time >= next_time) {
       next_time = new_time + 1000;
-      *IS = *IS | 1;
+      *IS = *IS | 0b00000001;
     }
 
     int IR = cpu_ram_read(cpu, cpu->PC);
+    printf("IR: %c\n", IR);
   
     int mask = 0b11000000;
     int operandA;
@@ -375,11 +372,11 @@ void cpu_run(struct cpu *cpu)
 }
 
 // for testing
-// void main() {
-//   struct cpu cpu;
+void main() {
+  struct cpu cpu;
 
-//   cpu_init(&cpu);
-//   cpu_load(&cpu);
-//   cpu_run(&cpu);
+  cpu_init(&cpu);
+  cpu_load(&cpu, "");
+  cpu_run(&cpu);
 
-// }
+}
