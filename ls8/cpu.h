@@ -7,7 +7,7 @@
 // ALU Instructions
 #define ADD 0b10100000
 #define AND 0b10101000 
-#define CMP 0b10101000
+#define CMP 0b10100111
 #define DEC 0b01100110
 #define DIV 0b10100011
 #define INC 0b01100101
@@ -50,8 +50,6 @@ struct cpu {
   // TODO
   unsigned char PC;
   unsigned char FL;
-  unsigned char MAR;
-  unsigned char MDR;
   unsigned char *registers;
   unsigned char *ram;
 };
