@@ -28,6 +28,8 @@
 #define LDI 0b10000010
 #define INT 0b01010010
 #define IRET 0b00010011
+#define PUSH 0b01000101
+#define POP 0b01000110
 
 // Jump Instructions
 #define JEQ 0b01010101

@@ -140,13 +140,14 @@ void cpu_run(struct cpu *cpu)
 {
   int running = 1; // True until we get a HLT instruction
 
+  // set up stack pointer
+  cpu->registers[7] = 0xF4;
+  unsigned char *SP = cpu->registers + 7;
+
   while (running)
   {
-    // TODO
-    // 1. Get the value of the current instruction (in address PC).
     int IR = cpu_ram_read(cpu, cpu->PC);
-    // 2. Figure out how many operands this next instruction requires
-    // 3. Get the appropriate value(s) of the operands following this instruction
+  
     int mask = 0b11000000;
     int operandA;
     int operandB;
@@ -162,6 +163,7 @@ void cpu_run(struct cpu *cpu)
       break;
     }
 
+    // handle alu operations
     mask = 0b00100000;
     if ((IR & mask) == 0b00100000)
     {
@@ -169,7 +171,8 @@ void cpu_run(struct cpu *cpu)
     }
     else
     {
-      // 4. switch() over it to decide on a course of action.
+      // otherwise, non-alu. non-jump cases.
+      // jump cases are handled further on as part of PC updation
       switch (IR)
       {
       case HLT:
@@ -192,11 +195,23 @@ void cpu_run(struct cpu *cpu)
       case PRN:
         printf("%d\n", cpu->registers[operandA]);
         break;
+
+      // stack operations
+      case PUSH:
+        *SP = *SP + 1;
+        cpu_ram_write(cpu, *SP, cpu->registers[operandA]);
+        break;
+
+      case POP:
+        cpu->registers[operandA] = cpu_ram_read(cpu, *SP);
+        *SP = *SP - 1;
+        break;
       }
+
+
     }
 
-    // 5. Do whatever the instruction should do according to the spec.
-    // 6. Move the PC to the next instruction.
+    // handle PC updating
     switch (IR)
     {
     case JEQ:
