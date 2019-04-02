@@ -21,7 +21,7 @@ void cpu_load(struct cpu *cpu, char *path)
   //     0b00000001 // HLT
   // };
 
-  FILE *file = fopen("examples/interrupts.ls8", "r");
+  FILE *file = fopen(path, "r");
 
   if (file == NULL) {
     perror("File not found.");
@@ -167,20 +167,24 @@ void cpu_run(struct cpu *cpu)
     unsigned long int new_time = tv.tv_sec * 1000 + tv.tv_usec;
     if (new_time >= next_time) {
       next_time = new_time + 1000;
+      // set 0th IS bit to 1
       *IS = *IS | 0b00000001;
     }
 
     int IR = cpu_ram_read(cpu, cpu->PC);
-  
+
+    // mask to get first two values
     int mask = 0b11000000;
     int operandA;
     int operandB;
     switch (IR & mask)
     {
+    // 1 operand case 
     case 0b01000000:
       operandA = cpu_ram_read(cpu, cpu->PC + 1);
       break;
 
+    // 2 operand case
     case 0b10000000:
       operandA = cpu_ram_read(cpu, cpu->PC + 1);
       operandB = cpu_ram_read(cpu, cpu->PC + 2);
@@ -200,6 +204,7 @@ void cpu_run(struct cpu *cpu)
         }
       }
       if (interrupt_happened) {
+        // set first IS bit to 0
         *IS = *IS & 0b11111110;
         interrupted = 1;
         *SP = *SP + 1;
@@ -224,6 +229,7 @@ void cpu_run(struct cpu *cpu)
 
     // handle alu operations
     mask = 0b00100000;
+    // determine if ALU bit is true
     if ((IR & mask) == 0b00100000)
     {
       alu(cpu, IR, operandA, operandB);
@@ -353,15 +359,19 @@ void cpu_run(struct cpu *cpu)
       break;
     // if not a jump case, increment appropriately
     default:
+      // mask to redetermine number of operands
       mask = 0b11000000;
       switch (IR & mask)
       {
+      // 0 operands
       case 0b00000000:
         cpu->PC = cpu->PC + 1;
         break;
+      // 1 operand
       case 0b01000000:
         cpu->PC = cpu->PC + 2;
         break;
+      // 2 operands
       case 0b10000000:
         cpu->PC = cpu->PC + 3;
         break;
@@ -371,11 +381,11 @@ void cpu_run(struct cpu *cpu)
 }
 
 // for testing
-void main() {
-  struct cpu cpu;
+// void main() {
+//   struct cpu cpu;
 
-  cpu_init(&cpu);
-  cpu_load(&cpu, "");
-  cpu_run(&cpu);
+//   cpu_init(&cpu);
+//   cpu_load(&cpu, "");
+//   cpu_run(&cpu);
 
-}
+// }
