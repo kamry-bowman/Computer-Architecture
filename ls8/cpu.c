@@ -2,6 +2,43 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <ctype.h> // for isprint()
+
+struct termios oldattr;
+int oldfcntl;
+
+
+void set_terminal(void)
+{
+	struct termios newattr;
+
+	// Non-canonical, no-echo mode
+	tcgetattr( STDIN_FILENO, &oldattr );
+
+	newattr = oldattr;
+	newattr.c_lflag &= ~( ICANON | ECHO);
+
+	tcsetattr( STDIN_FILENO, TCSANOW, &newattr );
+
+	// Non-blocking mode
+	oldfcntl = fcntl(STDIN_FILENO, F_GETFL, 0);
+	int newfcntl = oldfcntl | O_NONBLOCK;
+
+	fcntl(STDIN_FILENO, F_SETFL, newfcntl);
+}
+
+/**
+ * Reset the terminal to what it was before
+ */
+void reset_terminal(void)
+{
+	fcntl(STDIN_FILENO, F_SETFL, oldfcntl);
+	tcsetattr( STDIN_FILENO, TCSANOW, &oldattr );
+}
+
 
 #define DATA_LEN 6
 
@@ -21,6 +58,7 @@ void cpu_load(struct cpu *cpu, char *path)
   //     0b00000001 // HLT
   // };
 
+//"examples/keyboard.ls8"
   FILE *file = fopen(path, "r");
 
   if (file == NULL) {
@@ -58,6 +96,7 @@ void cpu_destroy(struct cpu *cpu)
 {
   free(cpu->registers);
   free(cpu->ram);
+  reset_terminal();
 }
 
 unsigned char cpu_ram_read(struct cpu *cpu, int address)
@@ -148,13 +187,19 @@ void cpu_run(struct cpu *cpu)
   gettimeofday(&tv, NULL);
   double next_time = ((double) tv.tv_sec + 1) + tv.tv_usec / 1000000;
 
+  // Raw, noecho, non-blocking mode
+  set_terminal();
+  
 
   // set up stack pointer
   cpu->registers[7] = 0xF4;
   unsigned char *SP = cpu->registers + 7;
 
-  // set up IS and IM register
+  // special ram positions
   unsigned char INTERRUPT_RAM = 0xF8;
+  unsigned char KEY_RAM = 0xF4;
+
+  // set up IS and IM register
   cpu->registers[5] = 0;
   unsigned char *IM = cpu->registers + 5;
   cpu->registers[6] = 0;
@@ -163,17 +208,29 @@ void cpu_run(struct cpu *cpu)
   while (running)
   {
     // check interrupts
+    // check timer interrupt
     gettimeofday(&tv, NULL);
     double new_time = (double) tv.tv_sec + (tv.tv_usec / 1000000);
     if (new_time >= next_time) {
-      if (!interrupted) {
-        printf("old time: %f\n", next_time - 1);
-        printf("new time time: %f\n", new_time);
-      }
       next_time = new_time + 1;
       // set 0th IS bit to 1
       *IS = *IS | 0b00000001;
     }
+
+    // check keyboard interrupt
+    int key = getchar();
+    if (key != -1) {
+      if (isprint(key)) {
+        // save key press to RAM
+        cpu_ram_write(cpu, KEY_RAM, key);
+        
+        // set 1st IS bit to 1
+        *IS = * IS | 0b00000010;
+      }
+    }
+
+    // trace(cpu);
+
 
     int IR = cpu_ram_read(cpu, cpu->PC);
 
@@ -208,20 +265,22 @@ void cpu_run(struct cpu *cpu)
         }
       }
       if (interrupt_happened) {
-        // set first IS bit to 0
-        *IS = *IS & 0b11111110;
+        // set IS bit to 0
+        unsigned char mask = ~(1 << interrupt_pos);
+        *IS = *IS & mask;
+
         interrupted = 1;
-        *SP = *SP + 1;
+        *SP = *SP - 1;
         // push PC onto stack
         cpu_ram_write(cpu, *SP, cpu->PC);
 
         // push FL onto stack
-        *SP = *SP + 1;
+        *SP = *SP - 1;
         cpu_ram_write(cpu, *SP, cpu->FL);
 
         // push registers R0 - R6 onto stack
         for (int i = 0; i < 7; i++) {
-          *SP = *SP + 1;
+          *SP = *SP - 1;
           cpu_ram_write(cpu, *SP, cpu->registers[i]);
         }
 
@@ -274,13 +333,13 @@ void cpu_run(struct cpu *cpu)
 
       // stack operations
       case PUSH:
-        *SP = *SP + 1;
+        *SP = *SP - 1;
         cpu_ram_write(cpu, *SP, cpu->registers[operandA]);
         break;
 
       case POP:
         cpu->registers[operandA] = cpu_ram_read(cpu, *SP);
-        *SP = *SP - 1;
+        *SP = *SP + 1;
         break;
       }
 
@@ -291,30 +350,30 @@ void cpu_run(struct cpu *cpu)
     switch (IR)
     {
     case CALL:
-      *SP = *SP + 1;
+      *SP = *SP - 1;
       cpu_ram_write(cpu, *SP, cpu->PC + 2);
       cpu->PC = cpu->registers[operandA];
       break;
     
     case RET:
       cpu->PC = cpu_ram_read(cpu, *SP);
-      *SP = *SP - 1;
+      *SP = *SP + 1;
       break;
 
     case IRET:
       // pop R6-RO off stack into registers
       for (int i = 0; i < 7; i++) {
         cpu->registers[6 - i] = cpu_ram_read(cpu, *SP);
-        *SP = *SP - 1;
+        *SP = *SP + 1;
       }
 
       // pop FL off stack onto FL register
       cpu->FL = cpu_ram_read(cpu, *SP);
-      *SP = *SP - 1;
+      *SP = *SP + 1;
 
       // pop PC off stack onto PC register
       cpu->PC = cpu_ram_read(cpu, *SP);
-      *SP = *SP - 1;
+      *SP = *SP + 1;
 
       // set global interrupted flag to false
       interrupted = 0;
