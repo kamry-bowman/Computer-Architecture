@@ -146,7 +146,7 @@ void cpu_run(struct cpu *cpu)
   // set up interrupt timer
   struct timeval tv;
   gettimeofday(&tv, NULL);
-  unsigned long int next_time = tv.tv_sec * 1000 + tv.tv_usec + 1000;
+  double next_time = ((double) tv.tv_sec + 1) + tv.tv_usec / 1000000;
 
 
   // set up stack pointer
@@ -164,9 +164,13 @@ void cpu_run(struct cpu *cpu)
   {
     // check interrupts
     gettimeofday(&tv, NULL);
-    unsigned long int new_time = tv.tv_sec * 1000 + tv.tv_usec;
+    double new_time = (double) tv.tv_sec + (tv.tv_usec / 1000000);
     if (new_time >= next_time) {
-      next_time = new_time + 1000;
+      if (!interrupted) {
+        printf("old time: %f\n", next_time - 1);
+        printf("new time time: %f\n", new_time);
+      }
+      next_time = new_time + 1;
       // set 0th IS bit to 1
       *IS = *IS | 0b00000001;
     }
