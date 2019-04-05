@@ -58,7 +58,8 @@ void cpu_load(struct cpu *cpu, char *path)
   //     0b00000001 // HLT
   // };
 
-//"examples/keyboard.ls8"
+// "examples/conditionals.ls8"
+// "examples/conditionals.ls8"
   FILE *file = fopen(path, "r");
 
   if (file == NULL) {
@@ -165,14 +166,35 @@ void alu(struct cpu *cpu, unsigned char op, unsigned char regA, unsigned char re
     }
     else if (cpu->registers[regA] == cpu->registers[regB])
     {
-      cpu->FL = 4;
+      cpu->FL = 1;
     }
     else
     {
-      cpu->FL = 1;
+      cpu->FL = 4;
     }
     break;
   }
+}
+
+void update_PC(struct cpu *cpu, unsigned char IR)
+{
+      // mask to redetermine number of operands
+    unsigned char mask = 0b11000000;
+    switch (IR & mask)
+    {
+    // 0 operands
+    case 0b00000000:
+      cpu->PC = cpu->PC + 1;
+      break;
+    // 1 operand
+    case 0b01000000:
+      cpu->PC = cpu->PC + 2;
+      break;
+    // 2 operands
+    case 0b10000000:
+      cpu->PC = cpu->PC + 3;
+      break;
+    }
 }
 
 /**
@@ -349,106 +371,110 @@ void cpu_run(struct cpu *cpu)
     // handle PC updating
     switch (IR)
     {
-    case CALL:
-      *SP = *SP - 1;
-      cpu_ram_write(cpu, *SP, cpu->PC + 2);
-      cpu->PC = cpu->registers[operandA];
-      break;
-    
-    case RET:
-      cpu->PC = cpu_ram_read(cpu, *SP);
-      *SP = *SP + 1;
-      break;
-
-    case IRET:
-      // pop R6-RO off stack into registers
-      for (int i = 0; i < 7; i++) {
-        cpu->registers[6 - i] = cpu_ram_read(cpu, *SP);
+      case CALL:
+        *SP = *SP - 1;
+        cpu_ram_write(cpu, *SP, cpu->PC + 2);
+        cpu->PC = cpu->registers[operandA];
+        break;
+      
+      case RET:
+        cpu->PC = cpu_ram_read(cpu, *SP);
         *SP = *SP + 1;
-      }
-
-      // pop FL off stack onto FL register
-      cpu->FL = cpu_ram_read(cpu, *SP);
-      *SP = *SP + 1;
-
-      // pop PC off stack onto PC register
-      cpu->PC = cpu_ram_read(cpu, *SP);
-      *SP = *SP + 1;
-
-      // set global interrupted flag to false
-      interrupted = 0;
-      break;
-
-
-
-    case JEQ:
-      if (cpu->FL == 1)
-      {
-        cpu->PC = operandA;
-      }
-      break;
-    case JGE:
-      if (cpu->FL == 1 || cpu->FL == 4)
-      {
-        cpu->PC = operandA;
-      }
-      break;
-    case JGT:
-      if (cpu->FL == 4)
-      {
-        cpu->PC = operandA;
-      }
-      break;
-    case JLE:
-      if (cpu->FL == 1 || cpu->FL == 6)
-      {
-        cpu->PC = operandA;
-      }
-      break;
-    case JLT:
-      if (cpu->FL == 6)
-      {
-        cpu->PC = operandA;
-      }
-      break;
-    case JNE:
-      if (cpu->FL == 6 || cpu->FL == 4)
-      {
-        cpu->PC = operandA;
-      }
-      break;
-    case JMP:
-      cpu->PC = operandA;
-      break;
-    // if not a jump case, increment appropriately
-    default:
-      // mask to redetermine number of operands
-      mask = 0b11000000;
-      switch (IR & mask)
-      {
-      // 0 operands
-      case 0b00000000:
-        cpu->PC = cpu->PC + 1;
         break;
-      // 1 operand
-      case 0b01000000:
-        cpu->PC = cpu->PC + 2;
+
+      case IRET:
+        // pop R6-RO off stack into registers
+        for (int i = 0; i < 7; i++) {
+          cpu->registers[6 - i] = cpu_ram_read(cpu, *SP);
+          *SP = *SP + 1;
+        }
+
+        // pop FL off stack onto FL register
+        cpu->FL = cpu_ram_read(cpu, *SP);
+        *SP = *SP + 1;
+
+        // pop PC off stack onto PC register
+        cpu->PC = cpu_ram_read(cpu, *SP);
+        *SP = *SP + 1;
+
+        // set global interrupted flag to false
+        interrupted = 0;
         break;
-      // 2 operands
-      case 0b10000000:
-        cpu->PC = cpu->PC + 3;
+
+      case JEQ:
+        if (cpu->FL == 1)
+        {
+          cpu->PC = cpu->registers[operandA];
+          break;
+        } else {
+          update_PC(cpu, IR);
+          break;
+        }
+
+      case JGE:
+        if (cpu->FL == 1 || cpu->FL == 2)
+        {
+          cpu->PC = cpu->registers[operandA];
+          break;
+        } else {
+          update_PC(cpu, IR);
+          break;
+        }
+
+      case JGT:
+        if (cpu->FL == 2)
+        {
+          cpu->PC = cpu->registers[operandA];
+          break;
+        } else {
+          update_PC(cpu, IR);
+          break;
+        }
+
+      case JLE:
+        if (cpu->FL == 1 || cpu->FL == 4)
+        {
+          cpu->PC = cpu->registers[operandA];
+          break;
+        } else {
+          update_PC(cpu, IR);
+          break;
+        }
+      case JLT:
+        if (cpu->FL == 4)
+        {
+          cpu->PC = cpu->registers[operandA];
+          break;
+        } else {
+          update_PC(cpu, IR);
+          break;
+        }
+      case JNE:
+        if (cpu->FL == 2 || cpu->FL == 4)
+        {
+          cpu->PC = cpu->registers[operandA];
+          break;
+        } else {
+          update_PC(cpu, IR);
+          break;
+        }
+      case JMP:
+        cpu->PC = cpu->registers[operandA];
         break;
-      }
+      // if not a jump case, increment appropriately
+      default:
+        update_PC(cpu, IR);
+
     }
   }
 }
 
 // for testing
-// void main() {
+// int main() {
 //   struct cpu cpu;
 
 //   cpu_init(&cpu);
 //   cpu_load(&cpu, "");
 //   cpu_run(&cpu);
-
+//   return 0;
 // }
